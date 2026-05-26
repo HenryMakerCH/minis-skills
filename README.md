@@ -1,6 +1,6 @@
 # Minis Skills
 
-用 [Minis](https://github.com/open-minis) 做的 Skills 集合。
+用 [Minis](https://github.com/OpenMinis/OpenMinis) 做的 Skills 集合。
 
 ## Skills
 
