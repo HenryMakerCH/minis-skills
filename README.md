@@ -1,6 +1,6 @@
 # Minis Skills
 
-我自己写的 [Minis](https://github.com/open-minis) Skills 集合。
+用 [Minis](https://github.com/open-minis) 做的 Skills 集合。
 
 ## Skills
 
