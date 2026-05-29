@@ -13,9 +13,6 @@
 
 把目录复制到 `/var/minis/skills/<skill-name>/`，Minis 会自动加载。
 
-```sh
-# 克隆所有 skill
-cd /var/minis/skills
-git clone --depth 1 git@github.com:HenryMakerCH/minis-skills.git temp && \
-  cp -r temp/* . && rm -rf temp
-```
+也可以通过 Minis 内的导入来加载 Skills。
+
+这些 Skills 并非只支持 Minis。
