@@ -1,7 +1,7 @@
 ---
 name: nhentai-hub
 description: Browse, search, download, and manage nhentai galleries via official API v2. Use when the user asks to search nhentai, look up a gallery, browse/favorites, download galleries, or anything related to nhentai. Trigger keywords: nhentai, NH, n站, 本子, doujinshi, gallery, 画廊.
-version: 1.1.0
+version: 1.1.1
 ---
 # nhentai-hub
 

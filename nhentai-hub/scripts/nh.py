@@ -125,17 +125,23 @@ def cmd_cdn(args):
     print(json.dumps(d, indent=2))
 
 def cmd_download(args):
+    import subprocess
     path = f"/galleries/{args.id}/download"
     if args.format:
         path += f"?format={args.format}"
-    d = req(path, method="POST")
+    api_url = f"{API}{path}"
+    auth_h = f"Key {KEY}" if KEY else ""
+    r = subprocess.run(
+        ["curl", "-s", "-H", "Authorization: " + auth_h, "-X", "POST", api_url],
+        capture_output=True, text=True
+    )
+    d = json.loads(r.stdout)
     url = d.get("url", "?")
     expires = d.get("expires_at", "?")
     print(f"Download URL: {url}")
     print(f"Expires: {expires}")
     if args.dir:
         os.makedirs(args.dir, exist_ok=True)
-        import subprocess
         ext = args.format if args.format else "zip"
         fname = f"nhentai_{args.id}.{ext}"
         fpath = os.path.join(args.dir, fname)
