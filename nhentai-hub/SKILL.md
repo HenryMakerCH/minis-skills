@@ -1,7 +1,7 @@
 ---
 name: nhentai-hub
 description: Browse, search, download, and manage nhentai galleries via official API v2. Use when the user asks to search nhentai, look up a gallery, browse/favorites, download galleries, or anything related to nhentai. Trigger keywords: nhentai, NH, n站, 本子, doujinshi, gallery, 画廊.
-version: 1.0.0
+version: 1.1.0
 ---
 # nhentai-hub
 
@@ -67,9 +67,20 @@ python3 nh.py fav-random                                # random favorite
 ### Download
 
 ```bash
-python3 nh.py download 419630                           # get download ZIP URL
+python3 nh.py download 419630                           # get download ZIP URL (default)
 python3 nh.py download 419630 --dir /tmp/nh             # download ZIP to dir
+python3 nh.py download 419630 --format torrent          # get torrent URL (no download)
+python3 nh.py download 419630 --format torrent --dir .  # download .torrent file
+python3 nh.py download 419630 --format cbz              # get CBZ URL
 ```
+
+Supports three formats: `zip` (default), `cbz`, `torrent`. Each returns a
+short-lived signed URL — download it before `expires_at`.
+
+**Torrent rate limits** (stricter than ZIP):
+- 5 req/min per IP
+- 10 req/5min per user
+- 5 req/min per API key owner
 
 ### Tags
 
@@ -124,4 +135,6 @@ thumb_url  = f"{thumb}/{page['thumbnail']}"    # e.g. galleries/2323539/1t.jpg
 - Tag types: `artist`, `category`, `character`, `group`, `language`, `parody`, `tag`
 - Rate limits are generous; treat 429 as a backoff signal
 - Don't hardcode CDN subdomains — always fetch from `/api/v2/cdn`
-- Download ZIP endpoint returns a signed URL, valid for a limited time
+- Download endpoint returns a signed URL, valid for a limited time (`expires_at` unix timestamp)
+- Download supports `zip` (default), `cbz`, and `torrent` formats via `--format`
+- Torrent format has stricter rate limits than ZIP — see Download section

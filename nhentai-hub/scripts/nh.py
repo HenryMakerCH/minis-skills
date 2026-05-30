@@ -125,13 +125,19 @@ def cmd_cdn(args):
     print(json.dumps(d, indent=2))
 
 def cmd_download(args):
-    d = req(f"/galleries/{args.id}/download", method="POST")
+    path = f"/galleries/{args.id}/download"
+    if args.format:
+        path += f"?format={args.format}"
+    d = req(path, method="POST")
     url = d.get("url", "?")
+    expires = d.get("expires_at", "?")
     print(f"Download URL: {url}")
+    print(f"Expires: {expires}")
     if args.dir:
         os.makedirs(args.dir, exist_ok=True)
         import subprocess
-        fname = f"nhentai_{args.id}.zip"
+        ext = args.format if args.format else "zip"
+        fname = f"nhentai_{args.id}.{ext}"
         fpath = os.path.join(args.dir, fname)
         print(f"Downloading to {fpath} ...")
         subprocess.run(["curl", "-sLo", fpath, url], check=True)
@@ -227,6 +233,8 @@ def main():
     sp_d = sp.add_parser("download")
     sp_d.add_argument("id", type=int)
     sp_d.add_argument("--dir")
+    sp_d.add_argument("--format", choices=["zip", "cbz", "torrent"],
+                      help="Download format (default: zip)")
 
     # pages
     sp_pg = sp.add_parser("pages")
