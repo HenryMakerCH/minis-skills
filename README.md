@@ -16,3 +16,4 @@
 也可以通过 Minis 内的导入来加载 Skills。
 
 这些 Skills 并非只支持 Minis。
+| [komga-hub](komga-hub/) | Manage Komga manga library via REST API | ✅ | REST API wrapper |
