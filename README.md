@@ -9,6 +9,7 @@
 | [x-tweet-fetcher](./x-tweet-fetcher/) | 通过 X/Twitter 内部 GraphQL API 获取指定用户最新推文。纯标准库，零依赖。 |
 | [nhentai-hub](./nhentai-hub/) | 通过 nhentai API v2 搜索、浏览、下载和管理画廊。需 API Key。 |
 | [komga-hub](./komga-hub/) | 通过 Komga REST API 管理漫画库，支持查询系列/书籍、更新元数据等操作。 |
+| [wd-tagger](./wd-tagger/) | 调用 HuggingFace 上的 SmilingWolf wd-tagger 给图片打 Danbooru 风格标签，无需本地模型。 |
 
 ## 使用
 
