@@ -11,6 +11,7 @@
 | [komga-hub](./komga-hub/) | 通过 Komga REST API 管理漫画库，支持查询系列/书籍、更新元数据等操作。 |
 | [wd-tagger](./wd-tagger/) | 给图片打 Danbooru 风格标签。单张用 HuggingFace Space（免费），批量用 Colab GPU（~0.2s/张）。 |
 | [twitter-x-hub](./twitter-x-hub/) | 读写 Twitter/X 数据的 Python 工具，支持时间线/搜索/书签/点赞/用户资料及发推/点赞等写操作。纯标准库，零第三方依赖。 |
+| [pixiv-hub](./pixiv-hub/) | Pixiv 插画浏览、搜索、排行榜、收藏、下载。基于 pixivpy3，需 refresh_token（PixEz 导出或 OAuth 获取）。 |
 
 ## 使用
 
