@@ -1,164 +1,150 @@
 #!/usr/bin/env python3
 """
-wd-tagger: 通过 HuggingFace Gradio API 调用 SmilingWolf wd-tagger 打标。
+wd-tagger: 给图片打 Danbooru 风格标签。
+
+后端:
+  space   - HuggingFace Gradio Space（免费，CPU，约 10s）
+  colab   - 自建 Colab GPU API（需自启，<1s，需填 API 地址）
 
 用法:
-  python3 tag.py <图片路径> [--model <模型>] [--gen-threshold <浮点>]
-                 [--char-threshold <浮点>] [--use-mcut] [--format text|json]
+  python3 tag.py <图片>                          # 使用 Space（默认）
+  python3 tag.py <图片> --api colab --api-url <URL>  # 使用 Colab
+  python3 tag.py <图片> --api colab                 # 使用 $WD_TAGGER_URL
 """
 
-import argparse
-import base64
-import json
-import os
-import sys
-import time
-import urllib.request
-import urllib.error
+import argparse, base64, json, os, ssl, sys, time, urllib.request, urllib.error
 
-API_BASE = "https://smilingwolf-wd-tagger.hf.space"
+# 绕过证书验证（代理/网络限制环境）
+_ssl_ctx = ssl.create_default_context()
+_ssl_ctx.check_hostname = False
+_ssl_ctx.verify_mode = ssl.CERT_NONE
+_https_handler = urllib.request.HTTPSHandler(context=_ssl_ctx)
+urllib.request.install_opener(urllib.request.build_opener(_https_handler))
 
-DEFAULT_MODEL = "SmilingWolf/wd-vit-tagger-v3"
-
-MODELS = [
+# ── Space API ──
+SPACE_BASE = "https://smilingwolf-wd-tagger.hf.space"
+SPACE_MODELS = [
     "SmilingWolf/wd-swinv2-tagger-v3",
-    "SmilingWolf/wd-convnext-tagger-v3",
     "SmilingWolf/wd-vit-tagger-v3",
-    "SmilingWolf/wd-vit-large-tagger-v3",
     "SmilingWolf/wd-eva02-large-tagger-v3",
     "SmilingWolf/wd-v1-4-moat-tagger-v2",
-    "SmilingWolf/wd-v1-4-swinv2-tagger-v2",
-    "SmilingWolf/wd-v1-4-convnext-tagger-v2",
-    "SmilingWolf/wd-v1-4-convnextv2-tagger-v2",
-    "SmilingWolf/wd-v1-4-vit-tagger-v2",
-    "deepghs/idolsankaku-swinv2-tagger-v1",
-    "deepghs/idolsankaku-eva02-large-tagger-v1",
 ]
+DEFAULT_MODEL = "SmilingWolf/wd-vit-tagger-v3"
 
 
-def upload_image(image_path: str) -> str:
-    """上传图片到 Gradio Space，返回服务器端路径。"""
-    boundary = "----MinisFormBoundary7MA4YWxkTrZu0gW"
-
+def tag_space(image_path, model, gen_thresh, use_mcut, char_thresh):
+    """通过 Gradio Space API 打标。"""
+    # 上传图片
+    boundary = "----MinisFormBoundary"
+    filename = os.path.basename(image_path)
     with open(image_path, "rb") as f:
         img_data = f.read()
-
-    filename = os.path.basename(image_path)
     body = b""
-    body += f"--{boundary}\r\n".encode()
-    body += f'Content-Disposition: form-data; name="files"; filename="{filename}"\r\n'.encode()
-    body += b"Content-Type: application/octet-stream\r\n\r\n"
+    body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode()
     body += img_data
     body += f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(f"{SPACE_BASE}/gradio_api/upload", data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req) as r:
+        server_path = json.loads(r.read())[0]
 
-    req = urllib.request.Request(
-        f"{API_BASE}/gradio_api/upload",
-        data=body,
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-    )
-    with urllib.request.urlopen(req) as resp:
-        result = json.loads(resp.read().decode())
-        return result[0]
+    # 推理
+    payload = {"data": [{"path": server_path}, model, gen_thresh, use_mcut, char_thresh, use_mcut]}
+    req = urllib.request.Request(f"{SPACE_BASE}/gradio_api/call/predict",
+        data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as r:
+        event_id = json.loads(r.read())["event_id"]
 
-
-def predict(image_path: str, model: str, gen_threshold: float,
-            use_mcut: bool, char_threshold: float, use_mcut_char: bool) -> dict:
-    """上传图片并调用 Gradio predict API。"""
-    server_path = upload_image(image_path)
-
-    payload = {
-        "data": [
-            {"path": server_path},
-            model,
-            gen_threshold,
-            use_mcut,
-            char_threshold,
-            use_mcut_char,
-        ]
-    }
-
-    req = urllib.request.Request(
-        f"{API_BASE}/gradio_api/call/predict",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req) as resp:
-        event_id = json.loads(resp.read().decode())["event_id"]
-
-    # Poll for result (SSE)
-    for _ in range(30):
-        time.sleep(1.5)
+    for _ in range(40):
+        time.sleep(1)
         try:
-            req2 = urllib.request.Request(
-                f"{API_BASE}/gradio_api/call/predict/{event_id}"
-            )
-            with urllib.request.urlopen(req2) as resp2:
-                raw = resp2.read().decode()
+            req2 = urllib.request.Request(f"{SPACE_BASE}/gradio_api/call/predict/{event_id}")
+            with urllib.request.urlopen(req2) as r2:
+                raw = r2.read().decode()
         except urllib.error.HTTPError:
             continue
-
         lines = raw.strip().split("\n")
         for i, line in enumerate(lines):
-            if line.startswith("event: complete") or line.startswith("event: process_completed"):
-                # Next line should be data:
+            if "event: complete" in line:
                 if i + 1 < len(lines) and lines[i + 1].startswith("data: "):
-                    return json.loads(lines[i + 1][6:])
+                    return _parse_space(json.loads(lines[i + 1][6:]))
+    raise TimeoutError("Space API 超时")
 
-    raise TimeoutError("API 超时，请稍后重试")
 
-
-def format_text(result: list) -> str:
-    """格式化输出为人类可读文本。"""
-    tags_str = result[0] if result[0] else ""
+def _parse_space(result):
+    tags_str = result[0] or ""
     rating_data = result[1] if len(result) > 1 else {}
     chars_data = result[2] if len(result) > 2 else {}
+    tags_list = [t.strip() for t in tags_str.split(",") if t.strip()]
+    rating_label = rating_data.get("label", "?")
+    chars_label = chars_data.get("label", "")
+    return {
+        "tags": tags_list,
+        "rating": rating_label,
+        "rating_detail": rating_data.get("confidences", []),
+        "characters": [chars_label] if chars_label else [],
+        "source": "huggingface_space",
+    }
 
+
+# ── Colab API ──
+def tag_colab(image_path, api_url, gen_thresh, char_thresh):
+    """通过 Colab GPU API 打标。"""
+    import io
+    boundary = "----MinisFormBoundary"
+    filename = os.path.basename(image_path)
+    with open(image_path, "rb") as f:
+        img_data = f.read()
+    body = b""
+    body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode()
+    body += img_data
+    body += f"\r\n--{boundary}--\r\n".encode()
+    url = f"{api_url.rstrip('/')}/tag?gt={gen_thresh}&ct={char_thresh}"
+    req = urllib.request.Request(url, data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req) as r:
+        data = json.loads(r.read())
+    if "error" in data:
+        raise RuntimeError(data["error"])
+    data["source"] = "colab"
+    return data
+
+
+# ── 输出 ──
+def format_text(data):
     lines = []
-    if rating_data:
-        label = rating_data.get("label", "?")
-        confs = rating_data.get("confidences", [])
-        top_conf = confs[0]["confidence"] * 100 if confs else 0
-        lines.append(f"=== 评级 ===\n{label} ({top_conf:.1f}%)")
-
-    if chars_data and chars_data.get("label"):
-        lines.append(f"\n=== 角色 ===\n{chars_data['label']}")
-
-    if tags_str:
-        tags = [t.strip() for t in tags_str.split(",") if t.strip()]
-        lines.append(f"\n=== 标签 ({len(tags)}个) ===\n" + ", ".join(tags))
-
+    lines.append(f"=== 评级 ===\n{data['rating']}")
+    if "rating_detail" in data:
+        for item in data["rating_detail"]:
+            if isinstance(item, (list, tuple)):
+                lines.append(f"  {item[0]}: {item[1]:.1%}")
+            elif isinstance(item, dict):
+                lines.append(f"  {item['label']}: {item['confidence']:.1%}")
+    chars = data.get("characters", [])
+    if chars and chars[0]:
+        lines.append(f"\n=== 角色 ===\n{', '.join(chars)}")
+    tags = data.get("tags", [])
+    if tags:
+        lines.append(f"\n=== 标签 ({len(tags)}个) ===\n{', '.join(tags)}")
+    t = data.get("time")
+    if t:
+        lines.append(f"\n({t}s, {data.get('source', '?')})")
     return "\n".join(lines)
 
 
-def format_json(result: list) -> str:
-    """格式化输出为 JSON。"""
-    tags_str = result[0] if result[0] else ""
-    tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
-    rating_data = result[1] if len(result) > 1 else {}
-    chars_data = result[2] if len(result) > 2 else {}
-
-    output = {
-        "tags": tags,
-        "tags_raw": tags_str,
-        "rating": rating_data,
-        "characters": chars_data,
-    }
-    return json.dumps(output, ensure_ascii=False, indent=2)
-
-
+# ── CLI ──
 def main():
     parser = argparse.ArgumentParser(description="wd-tagger: 给图片打 Danbooru 风格标签")
-    parser.add_argument("image", help="图片路径（支持本地文件）")
-    parser.add_argument("--model", default=DEFAULT_MODEL,
-                        choices=MODELS, help="打标模型")
-    parser.add_argument("--gen-threshold", type=float, default=0.35,
-                        help="通用标签阈值 (0-1)")
-    parser.add_argument("--char-threshold", type=float, default=0.35,
-                        help="角色标签阈值 (0-1)")
-    parser.add_argument("--use-mcut", action="store_true",
-                        help="启用 MCut 自适应阈值")
-    parser.add_argument("--format", choices=["text", "json"], default="text",
-                        help="输出格式")
+    parser.add_argument("image", help="图片路径")
+    parser.add_argument("--api", choices=["space", "colab"], default="space",
+                        help="API 后端 (默认 space)")
+    parser.add_argument("--api-url", default=os.environ.get("WD_TAGGER_URL", ""),
+                        help="Colab API 地址（需 --api colab，或设 WD_TAGGER_URL 环境变量）")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="模型（仅 space 模式）")
+    parser.add_argument("--gen-threshold", type=float, default=0.35)
+    parser.add_argument("--char-threshold", type=float, default=0.85)
+    parser.add_argument("--use-mcut", action="store_true", help="MCut 自适应阈值（仅 space）")
+    parser.add_argument("--format", choices=["text", "json"], default="text")
 
     args = parser.parse_args()
 
@@ -166,17 +152,16 @@ def main():
         print(f"错误: 图片不存在: {args.image}", file=sys.stderr)
         sys.exit(1)
 
-    result = predict(
-        args.image,
-        args.model,
-        args.gen_threshold,
-        args.use_mcut,
-        args.char_threshold,
-        args.use_mcut,
-    )
+    if args.api == "colab":
+        if not args.api_url:
+            print("错误: Colab 模式需要 --api-url 或设 WD_TAGGER_URL 环境变量", file=sys.stderr)
+            sys.exit(1)
+        result = tag_colab(args.image, args.api_url, args.gen_threshold, args.char_threshold)
+    else:
+        result = tag_space(args.image, args.model, args.gen_threshold, args.use_mcut, args.char_threshold)
 
     if args.format == "json":
-        print(format_json(result))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         print(format_text(result))
 
