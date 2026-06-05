@@ -12,6 +12,7 @@
 | [wd-tagger](./wd-tagger/) | 给图片打 Danbooru 风格标签。单张用 HuggingFace Space（免费），批量用 Colab GPU（~0.2s/张）。 |
 | [twitter-x-hub](./twitter-x-hub/) | 读写 Twitter/X 数据的 Python 工具，支持时间线/搜索/书签/点赞/用户资料及发推/点赞等写操作。纯标准库，零第三方依赖。 |
 | [pixiv-hub](./pixiv-hub/) | Pixiv 插画浏览、搜索、排行榜、收藏、下载。基于 pixivpy3，需 refresh_token（PixEz 导出或 OAuth 获取）。 |
+| [xai-imagine](./xai-imagine/) | xAI Imagine API 图片生成 & 编辑。文生图用 `/v1/images/generations`，图编辑用 `/v1/images/edits`。需 `XAI_API_KEY`。 |
 
 ## 使用
 
